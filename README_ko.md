@@ -2,6 +2,9 @@
 
 [English](README.md) | **한국어**
 
+<p align="center"><img src="docs/teaser.gif" width="720" alt="하나의 정책이 춤, 점프, 질주, 격투 클립을 따라가는 모습"></p>
+<p align="center"><sub>하나의 정책, LAFAN1 클립 4개. 흰색: MuJoCo의 정책. 파란색: 참조 동작.</sub></p>
+
 [SuperMimic](https://arxiv.org/abs/2610.28480)으로 Unitree G1의 전신 모션 트래킹을 학습합니다. 리플레이로 미분 가능한 월드 모델을 학습하고, 상상 롤아웃을 통해 트래킹 보상을 역전파하여 목표 조건부 정책을 학습합니다. 구조는 [legged-gym-mujoco](https://github.com/JihoonPark20/legged-gym-mujoco)를 따릅니다. 물리는 멀티스레드 CPU MuJoCo에서, 월드 모델·정책·크리틱은 CUDA, MPS 또는 CPU에서 학습하므로 같은 코드가 Linux와 macOS에서 동작합니다.
 
 ## 설치
@@ -30,6 +33,16 @@ python -m pytest tests
 ```
 
 Linux에서는 뷰어를 `python`으로 실행합니다. `--evaluate`는 모든 클립을 첫 프레임부터 노이즈·무작위화 없이 한 번씩 재생하고 결과 JSON을 체크포인트 옆에 저장합니다. `--checkpoint_path` 대신 `--resume`을 쓰면 최신 학습 체크포인트를 사용합니다.
+
+## 결과
+
+`checkpoints/g1_mimic_lafan1.pt`는 기본 설정으로 21000 iteration(업데이트 8384회)을 Apple M1 Max에서 3시간 27분 동안 학습했습니다. 40개 클립 평가 결과:
+
+| 평균 정규화 리턴 | 스텝 가중 | 완주한 클립 |
+|---:|---:|---:|
+| 0.753 | 0.777 | 28 / 40 |
+
+조기 종료 12건 중 7건은 넘어졌다 일어나는 클립입니다.
 
 ## 물리는 CPU, 학습은 가속기
 

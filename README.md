@@ -2,6 +2,9 @@
 
 **English** | [한국어](README_ko.md)
 
+<p align="center"><img src="docs/teaser.gif" width="720" alt="One policy tracking dance, jumps, sprint and fight clips"></p>
+<p align="center"><sub>One policy, four LAFAN1 clips. White: policy in MuJoCo. Blue: reference motion.</sub></p>
+
 Whole-body motion tracking for the Unitree G1 with [SuperMimic](https://arxiv.org/abs/2610.28480): a differentiable world model fit on replay, and a goal-conditioned policy trained by back-propagating the tracking reward through imagined rollouts. The structure follows [legged-gym-mujoco](https://github.com/JihoonPark20/legged-gym-mujoco). Physics runs on multithreaded CPU MuJoCo; the world model, policy and critic train on CUDA, MPS or CPU, so the same code runs on Linux and macOS.
 
 ## Install
@@ -30,6 +33,16 @@ python -m pytest tests
 ```
 
 On Linux the viewer runs with `python`. `--evaluate` plays every clip once from its first frame without noise or randomization and writes a JSON report beside the checkpoint. `--resume` instead of `--checkpoint_path` picks the latest training checkpoint.
+
+## Results
+
+`checkpoints/g1_mimic_lafan1.pt` was trained with the default settings for 21000 iterations (8384 updates) in 3 h 27 min on an Apple M1 Max. On the 40-clip evaluation:
+
+| Mean normalized return | Step-weighted | Completed clips |
+|---:|---:|---:|
+| 0.753 | 0.777 | 28 / 40 |
+
+Seven of the twelve early terminations are fall-and-get-up clips.
 
 ## Physics on the CPU, learning on the accelerator
 

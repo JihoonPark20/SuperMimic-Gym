@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.omc/
+build/
+dist/
+logs/
+data/
+checkpoints/*
+!checkpoints/g1_mimic_lafan1.pt
+evaluations/
+.DS_Store
