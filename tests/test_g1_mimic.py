@@ -83,19 +83,19 @@ CHECKPOINTS = sorted((Path(LEGGED_GYM_ROOT_DIR) / "checkpoints").glob("*.pt"))
 needs_motions = pytest.mark.skipif(not MOTIONS.is_dir(), reason="run python -m legged_gym.scripts.prepare_motions")
 
 
-def _make(argv, evaluation=False):
+def _make(argv, evaluation=False, task="g1_mimic"):
     from legged_gym.envs import task_registry
     from legged_gym.supermimic.benchmark import configure_evaluation
     from legged_gym.utils import get_args
 
-    args = get_args(["--rl_device", "cpu", "--num_threads", "2", "--motion", "walk1_subject1", *argv])
+    args = get_args(["--task", task, "--rl_device", "cpu", "--num_threads", "2", "--motion", "walk1_subject1", *argv])
     args.play = evaluation  # playback loads weights only, so policy-only exports work
-    env_cfg, train_cfg = task_registry.get_cfgs("g1_mimic", args)
+    env_cfg, train_cfg = task_registry.get_cfgs(task, args)
     train_cfg.world_model.compile = train_cfg.imagination.compile = None
     if evaluation:
         configure_evaluation(env_cfg)
-    env = task_registry.make_env("g1_mimic", env_cfg)
-    return env, task_registry.make_alg_runner(env, "g1_mimic", args, train_cfg, log_root=None)
+    env = task_registry.make_env(task, env_cfg)
+    return env, task_registry.make_alg_runner(env, task, args, train_cfg, log_root=None)
 
 
 @needs_motions
@@ -121,7 +121,9 @@ def test_env_step_and_checkpoint_round_trip(tmp_path):
 @pytest.mark.parametrize("checkpoint", CHECKPOINTS, ids=lambda p: p.name)
 def test_checkpoint_tracks_walk(checkpoint):
     """A trained policy in checkpoints/ must track walk1_subject1 for 20 s."""
-    env, runner = _make(["--num_envs", "1", "--checkpoint_path", str(checkpoint)], evaluation=True)
+    actor = torch.load(checkpoint, map_location="cpu", weights_only=False)["config"]["policy"].get("actor", "mlp")
+    task = "supermimic-ode" if actor == "ode" else "supermimic"
+    env, runner = _make(["--num_envs", "1", "--checkpoint_path", str(checkpoint)], evaluation=True, task=task)
     try:
         policy, obs, total = runner.get_inference_policy("cpu"), env.get_observations(), 0.0
         with torch.no_grad():

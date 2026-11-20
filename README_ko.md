@@ -2,8 +2,8 @@
 
 [English](README.md) | **한국어**
 
-<p align="center"><img src="docs/teaser.gif" width="720" alt="하나의 정책이 춤, 점프, 질주, 격투 클립을 따라가는 모습"></p>
-<p align="center"><sub>하나의 정책, LAFAN1 클립 4개. 흰색: MuJoCo의 정책. 파란색: 참조 동작.</sub></p>
+<p align="center"><img src="docs/teaser.gif" width="720" alt="참조 동작, SuperMimic, SuperMimic-ODE가 춤, 점프, 질주 클립을 따라가는 모습"></p>
+<p align="center"><sub>MuJoCo에서 재생한 LAFAN1 클립 3개. 파란색: 참조 동작. 하늘색: SuperMimic. 기본 G1: SuperMimic-ODE.</sub></p>
 
 [SuperMimic](https://arxiv.org/abs/2610.28480)으로 Unitree G1의 전신 모션 트래킹을 학습합니다. 리플레이로 미분 가능한 월드 모델을 학습하고, 상상 롤아웃을 통해 트래킹 보상을 역전파하여 목표 조건부 정책을 학습합니다. 구조는 [legged-gym-mujoco](https://github.com/JihoonPark20/legged-gym-mujoco)를 따릅니다. 물리는 멀티스레드 CPU MuJoCo에서, 월드 모델·정책·크리틱은 CUDA, MPS 또는 CPU에서 학습하므로 같은 코드가 Linux와 macOS에서 동작합니다.
 
@@ -41,7 +41,7 @@ python -m legged_gym.scripts.train --task supermimic-ode --resume --max_iteratio
 
 ODE 정책은 [ODE Policy의 RL 구현](https://github.com/NTUMARS/ODE-POLICY/tree/9c505796ad0ecb811a12ab2c1ba3b8975af52a01/rl/supermimic_ode)을 따릅니다. `a_t = clip_amax(a_prev + clip_dmax(decoder(z, history)))`로 행동을 계산하며, 관측 이력의 마지막 **노이즈를 더하기 전 행동**을 사용합니다. 환경별 리셋 시 0에서 시작하고, 50 Hz 제어 스텝마다 Euler 적분을 한 번 수행합니다. 디코더 출력 자체가 스텝당 변화량이므로 `dt`를 추가로 곱하거나 별도 solver를 설치하지 않습니다. 상상 롤아웃에서는 이전 행동을 통한 역전파 경로가 유지됩니다.
 
-`G1MimicCfgSuperMimicODE.policy`에 `actor="ode"`, `ode_dmax=1.62`, 원본의 관절별 `ode_amax` 29개가 설정되어 있습니다. 정규화된 행동 단위의 경험적 제한이며 물리적 관절 한계는 아닙니다. 현재 G1과 관절 순서 및 행동 스케일을 대조했습니다. 두 태스크 모두 이 저장소의 기본값인 환경 1024개·상상 배치 512를 사용합니다. 원본의 환경 4096개 GPU 실험과 다르므로 같은 seed와 예산으로 비교해야 합니다. 아래 기존 결과는 MLP 체크포인트의 결과이며 ODE 학습 결과가 아닙니다.
+`G1MimicCfgSuperMimicODE.policy`에 `actor="ode"`, `ode_dmax=1.62`, 원본의 관절별 `ode_amax` 29개가 설정되어 있습니다. 정규화된 행동 단위의 경험적 제한이며 물리적 관절 한계는 아닙니다. 현재 G1과 관절 순서 및 행동 스케일을 대조했습니다. 두 태스크 모두 이 저장소의 기본값인 환경 1024개·상상 배치 512를 사용합니다. 원본의 환경 4096개 GPU 실험과 다르므로 같은 seed와 예산으로 비교해야 합니다. 결과는 아래에 있습니다.
 
 TensorBoard에는 `policy/imag_action_rate`, `policy/dJda_first`, `policy/dJda_last`, `policy/dJda_log_first_over_last`가 추가됩니다. ODE의 `policy/ode_step_bound_fraction`, `policy/ode_action_bound_fraction`은 최종 변화량·행동이 설정한 한계에 도달한 비율이며, 디코더 원출력의 클리핑 비율은 아닙니다.
 
@@ -61,7 +61,7 @@ ODE 정책의 학습 재개·재생·평가에는 같은 태스크를 지정합�
 ```bash
 python -m legged_gym.scripts.play --task supermimic-ode --resume --evaluate
 python -m legged_gym.scripts.export_policy logs/supermimic-ode/<run>/model_21000.pt checkpoints/my_ode_policy.pt
-mjpython -m legged_gym.scripts.play --task supermimic-ode --checkpoint_path checkpoints/my_ode_policy.pt
+mjpython -m legged_gym.scripts.play --task supermimic-ode --checkpoint_path checkpoints/supermimic_ode_lafan1.pt --motion jumps1_subject1
 ```
 
 체크포인트와 정책 내보내기에 정책 종류와 ODE 제한값이 보존됩니다. MLP와 ODE는 가중치 크기가 같더라도 서로 잘못 불러오면 오류가 발생합니다. 정책 종류 필드가 없는 과거 체크포인트는 MLP로 처리하며 `g1_mimic` 또는 `supermimic`으로 사용할 수 있습니다. 정책만 저장한 파일은 재생·평가용이고, 학습 재개에는 전체 체크포인트가 필요합니다. 환경이나 네트워크 설정을 변경했다면 `run_config.json`을 체크포인트와 함께 보관하세요.
@@ -70,13 +70,14 @@ mjpython -m legged_gym.scripts.play --task supermimic-ode --checkpoint_path chec
 
 ## 결과
 
-`checkpoints/g1_mimic_lafan1.pt`는 기본 설정으로 21000 iteration(업데이트 8384회)을 Apple M1 Max에서 3시간 27분 동안 학습했습니다. 40개 클립 평가 결과:
+두 체크포인트 모두 각 태스크의 기본 설정과 seed 0으로 21000 iteration(업데이트 8384회)을 Apple M1 Max에서 학습했습니다. SuperMimic은 3시간 27분, SuperMimic-ODE는 3시간 32분 걸렸습니다. 40개 클립 평가 결과:
 
-| 평균 정규화 리턴 | 스텝 가중 | 완주한 클립 |
-|---:|---:|---:|
-| 0.753 | 0.777 | 28 / 40 |
+| 정책 | 평균 정규화 리턴 | 스텝 가중 | 전체 길이 리턴 | 완주한 클립 | 행동 변화율 | 관절 저크 (rad/s³) |
+|---|---:|---:|---:|---:|---:|---:|
+| SuperMimic, `g1_mimic_lafan1.pt` | 0.758 | 0.780 | 0.637 | 29 / 40 | 0.0201 | 667 |
+| SuperMimic-ODE, `supermimic_ode_lafan1.pt` | 0.802 | 0.821 | 0.688 | 27 / 40 | 0.0209 | 664 |
 
-조기 종료 12건 중 7건은 넘어졌다 일어나는 클립입니다.
+SuperMimic-ODE는 넘어지기 전까지 더 정확하게 따라가고 전체 길이 리턴도 높지만, 완주한 클립은 2개 적습니다. 부드러움은 거의 같습니다. 두 정책 모두 조기 종료 중 6건은 넘어졌다 일어나는 클립입니다. 단일 seed 결과입니다.
 
 ## 물리는 CPU, 학습은 가속기
 

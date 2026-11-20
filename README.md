@@ -2,8 +2,8 @@
 
 **English** | [한국어](README_ko.md)
 
-<p align="center"><img src="docs/teaser.gif" width="720" alt="One policy tracking dance, jumps, sprint and fight clips"></p>
-<p align="center"><sub>One policy, four LAFAN1 clips. White: policy in MuJoCo. Blue: reference motion.</sub></p>
+<p align="center"><img src="docs/teaser.gif" width="720" alt="Reference motion, SuperMimic and SuperMimic-ODE tracking dance, jumps and sprint clips"></p>
+<p align="center"><sub>Three LAFAN1 clips in MuJoCo. Blue: reference motion. Light blue: SuperMimic. Default G1: SuperMimic-ODE.</sub></p>
 
 Whole-body motion tracking for the Unitree G1 with [SuperMimic](https://arxiv.org/abs/2610.28480): a differentiable world model fit on replay, and a goal-conditioned policy trained by back-propagating the tracking reward through imagined rollouts. The structure follows [legged-gym-mujoco](https://github.com/JihoonPark20/legged-gym-mujoco). Physics runs on multithreaded CPU MuJoCo; the world model, policy and critic train on CUDA, MPS or CPU, so the same code runs on Linux and macOS.
 
@@ -41,7 +41,7 @@ python -m legged_gym.scripts.train --task supermimic-ode --resume --max_iteratio
 
 The ODE actor follows [ODE Policy's RL implementation](https://github.com/NTUMARS/ODE-POLICY/tree/9c505796ad0ecb811a12ab2c1ba3b8975af52a01/rl/supermimic_ode): `a_t = clip_amax(a_prev + clip_dmax(decoder(z, history)))`. It reads the previous **clean** action from the observation history, starts from zero after each environment reset, and takes one Euler step per 50 Hz control tick. The decoder predicts an increment per tick, so there is no additional `dt` multiplier or solver dependency. The gradient through previous actions is retained in imagined rollouts.
 
-`G1MimicCfgSuperMimicODE.policy` sets `actor="ode"`, `ode_dmax=1.62` and the 29 upstream per-joint `ode_amax` bounds. These are empirical bounds in normalized action units, not physical joint limits. Their joint order and action scaling match this G1 task. Both presets use the local defaults (1024 environments, imagination batch 512), not the upstream 4096-environment GPU experiment. Compare matched seeds and budgets; the existing Results below describe the original MLP checkpoint, not an ODE training result.
+`G1MimicCfgSuperMimicODE.policy` sets `actor="ode"`, `ode_dmax=1.62` and the 29 upstream per-joint `ode_amax` bounds. These are empirical bounds in normalized action units, not physical joint limits. Their joint order and action scaling match this G1 task. Both presets use the local defaults (1024 environments, imagination batch 512), not the upstream 4096-environment GPU experiment. Compare matched seeds and budgets; see Results below.
 
 TensorBoard adds `policy/imag_action_rate`, `policy/dJda_first`, `policy/dJda_last`, and `policy/dJda_log_first_over_last`. ODE also reports `policy/ode_step_bound_fraction` and `policy/ode_action_bound_fraction`: fractions of final increments/actions at their configured bounds, not raw decoder clipping rates.
 
@@ -61,7 +61,7 @@ Use the same task when training, resuming, playing or evaluating an ODE policy:
 ```bash
 python -m legged_gym.scripts.play --task supermimic-ode --resume --evaluate
 python -m legged_gym.scripts.export_policy logs/supermimic-ode/<run>/model_21000.pt checkpoints/my_ode_policy.pt
-mjpython -m legged_gym.scripts.play --task supermimic-ode --checkpoint_path checkpoints/my_ode_policy.pt
+mjpython -m legged_gym.scripts.play --task supermimic-ode --checkpoint_path checkpoints/supermimic_ode_lafan1.pt --motion jumps1_subject1
 ```
 
 Checkpoints and policy exports preserve the actor and its bounds. Loading an MLP checkpoint as ODE, or vice versa, raises an error even though their weight shapes match. Older checkpoints without an actor field remain MLP and work with `g1_mimic` or `supermimic`. Policy-only exports support playback/evaluation; training resumes require a full checkpoint. Keep `run_config.json` beside checkpoints when using nondefault environment or network settings.
@@ -70,13 +70,14 @@ Evaluation JSON includes the task, policy configuration, completion rate, full-l
 
 ## Results
 
-`checkpoints/g1_mimic_lafan1.pt` was trained with the default settings for 21000 iterations (8384 updates) in 3 h 27 min on an Apple M1 Max. On the 40-clip evaluation:
+Both checkpoints were trained with their task defaults and seed 0 for 21000 iterations (8384 updates) on an Apple M1 Max: 3 h 27 min for SuperMimic, 3 h 32 min for SuperMimic-ODE. On the 40-clip evaluation:
 
-| Mean normalized return | Step-weighted | Completed clips |
-|---:|---:|---:|
-| 0.753 | 0.777 | 28 / 40 |
+| Policy | Mean normalized return | Step-weighted | Full-length return | Completed clips | Action rate | Joint jerk (rad/s³) |
+|---|---:|---:|---:|---:|---:|---:|
+| SuperMimic, `g1_mimic_lafan1.pt` | 0.758 | 0.780 | 0.637 | 29 / 40 | 0.0201 | 667 |
+| SuperMimic-ODE, `supermimic_ode_lafan1.pt` | 0.802 | 0.821 | 0.688 | 27 / 40 | 0.0209 | 664 |
 
-Seven of the twelve early terminations are fall-and-get-up clips.
+SuperMimic-ODE tracks more closely while it stays up and has the higher full-length return, but finishes two fewer clips; smoothness is about the same. Six of the early terminations of each policy are fall-and-get-up clips. These are single-seed results.
 
 ## Physics on the CPU, learning on the accelerator
 
