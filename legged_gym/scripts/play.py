@@ -37,6 +37,8 @@ def play(args):
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             path = directory / f"{args.task}_{checkpoint.stem}_{stamp}.json"
             report = {
+                "task": args.task,
+                "policy_config": vars(runner.policy_cfg),
                 "checkpoint": str(checkpoint),
                 "contract": policy_contract(env),
                 "summary": summary,

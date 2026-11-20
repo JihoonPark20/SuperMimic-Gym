@@ -1,0 +1,25 @@
+ODE actor integration and empirical G1 action bounds
+
+Source: https://github.com/NTUMARS/ODE-POLICY
+Revision: 9c505796ad0ecb811a12ab2c1ba3b8975af52a01 (rl-supermimic)
+Files: rl/supermimic_ode/supermimic_ode.patch, ode_amax_g1.txt
+License: Apache-2.0; see ode_policy_LICENSE.
+Paper: Jindou Jia et al., ODE Policy: Robot Learning via Action Dynamics,
+Not Actions, arXiv:2611.01729 (2026).
+
+The upstream patch modifies SuperMimic-Reproduced:
+https://github.com/CuboiLeo/SuperMimic-Reproduced
+Revision: ba6105349069bf040f1fdad60873d13138d505a2
+Copyright (c) 2026 Yuxi Liu; MIT; see supermimic_reproduced_LICENSE.
+
+Local adaptations: retained SuperMimic Gym's CPU MuJoCo environment and
+runner; added task presets, actor/configuration validation and legacy
+checkpoint handling; cached action bounds without changing state_dict keys;
+added gradient diagnostics and per-clip smoothness metrics with pre-reset
+velocities and valid-sample weighting. No PPO or mjlab runtime was imported.
+
+The 29 bounds use the upstream G1 joint order, checked against mjlab revision
+8bb2bc9e187797689ec82c78c35019afd2fd0376, asset_zoo/robots/unitree_g1/xmls/g1.xml.
+Its g1_constants.py uses the same motor inertias, gains and normalized action
+scale (0.25 * effort_limit / stiffness) as this task. Bounds are empirical
+training defaults, not physical joint limits or a guarantee of convergence.

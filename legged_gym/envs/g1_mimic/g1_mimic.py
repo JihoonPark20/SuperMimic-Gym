@@ -164,7 +164,11 @@ class G1Mimic:
         ids = reset.nonzero().squeeze(-1)
         if self.replay is not None:
             self._record(s, ids)
-        extras = {"time_outs": self.time_out_buf & ~self.terminated_buf}
+        extras = {
+            "time_outs": self.time_out_buf & ~self.terminated_buf,
+            # Measured velocity before auto-reset, for trajectory smoothness evaluation.
+            "joint_vel": s[:, 42:71].clone(),
+        }
         if ids.numel():
             extras["log"] = self._episode_metrics(ids)
             self.reset_idx(ids)

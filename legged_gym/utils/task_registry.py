@@ -30,6 +30,12 @@ class TaskRegistry:
             snapshot = Path(args.checkpoint_path).resolve().parent / "run_config.json"
             if snapshot.is_file():  # resume with the settings the checkpoint was trained with
                 saved = json.loads(snapshot.read_text())
+                saved_actor = saved["train"].get("policy", {}).get("actor", "mlp")
+                if saved_actor != train_cfg.policy.actor:
+                    raise ValueError(
+                        f"Checkpoint actor {saved_actor!r} does not match task {name!r} "
+                        f"({train_cfg.policy.actor!r}); select the matching --task"
+                    )
                 update_class_from_dict(env_cfg, saved["env"], strict=False)
                 update_class_from_dict(train_cfg, saved["train"], strict=False)
         if args is not None:

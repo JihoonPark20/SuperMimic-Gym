@@ -20,5 +20,7 @@ setup(
     },
     install_requires=["mujoco==3.17.0", "torch>=2.6.0", "numpy>=1.26", "tensorboard"],
     extras_require={"dev": ["pytest", "ruff"]},
-    entry_points={"console_scripts": ["legged-train=legged_gym.scripts.train:main", "legged-play=legged_gym.scripts.play:main"]},
+    entry_points={
+        "console_scripts": ["legged-train=legged_gym.scripts.train:main", "legged-play=legged_gym.scripts.play:main"]
+    },
 )

@@ -79,8 +79,10 @@ def get_load_path(root, load_run=-1, checkpoint=-1):
 
 
 def get_args(argv=None, *, playback=False):
+    from legged_gym.envs import task_registry
+
     parser = argparse.ArgumentParser(description="SuperMimic motion tracking: CPU MuJoCo physics, MPS/CUDA/CPU learner")
-    parser.add_argument("--task", default="g1_mimic", choices=["g1_mimic"])
+    parser.add_argument("--task", default="g1_mimic", choices=list(task_registry.task_classes))
     parser.add_argument("--rl_device", "--rl-device", default="auto", help="Learner device: mps, cpu, cuda[:N] or auto")
     parser.add_argument("--num_envs", "--num-envs", type=int)
     parser.add_argument("--num_threads", "--num-threads", type=int, help="MuJoCo CPU workers")

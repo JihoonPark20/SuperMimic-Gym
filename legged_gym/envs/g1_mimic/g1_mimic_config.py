@@ -188,6 +188,9 @@ class G1MimicCfgSuperMimic(BaseConfig):
         compile = "default"  # torch.compile mode or None
 
     class policy:
+        actor = "mlp"
+        ode_dmax = None
+        ode_amax = None
         encoder_hidden = [2048, 1024, 512, 256]
         decoder_hidden = [2048, 1024, 512, 256]
         latent_dim = 32
@@ -209,3 +212,45 @@ class G1MimicCfgSuperMimic(BaseConfig):
         critic_minibatches = 4
         obs_noise = True
         compile = "default"
+
+
+class G1MimicCfgSuperMimicODE(G1MimicCfgSuperMimic):
+    """Same MDP and learner as SuperMimic; only the actor's action parameterization changes."""
+
+    class policy(G1MimicCfgSuperMimic.policy):
+        actor = "ode"
+        ode_dmax = 1.62
+        # NTUMARS/ODE-POLICY @ 9c505796, rl/supermimic_ode/ode_amax_g1.txt.
+        # Normalized action units, G1 policy joint order: left leg, right leg,
+        # waist, left arm, right arm. Empirical bounds, not physical joint limits.
+        ode_amax = (
+            4.84,
+            4.71,
+            3.34,
+            7.22,
+            5.91,
+            1.58,
+            5.0,
+            3.52,
+            3.32,
+            6.94,
+            5.7,
+            1.53,
+            2.13,
+            2.78,
+            3.33,
+            6.16,
+            5.29,
+            4.68,
+            4.73,
+            5.11,
+            15.52,
+            22.56,
+            6.11,
+            5.22,
+            4.84,
+            4.71,
+            4.91,
+            14.55,
+            21.26,
+        )

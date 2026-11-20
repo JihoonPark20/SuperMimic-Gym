@@ -1,5 +1,6 @@
 """Goal-conditioned policy (motion encoder + shared decoder) and critic (paper Table A.4)."""
 
+import math
 from dataclasses import dataclass
 
 import torch
@@ -22,6 +23,19 @@ class PolicyCfg:
     goal_term_scale: tuple = (1.0, 5.0, 1.0, 2.0, 1.0, 1.0)
     decoder_last_gain: float = 0.01
     goal_dim: int = 689  # 10 future frames x 68 + 9 anchor-relative features
+    actor: str = "mlp"
+    ode_dmax: float | None = None
+    ode_amax: tuple | None = None
+
+    def __post_init__(self):
+        if self.actor not in ("mlp", "ode"):
+            raise ValueError(f"Unknown policy actor: {self.actor!r}")
+        if self.ode_dmax is not None and (not math.isfinite(self.ode_dmax) or self.ode_dmax <= 0):
+            raise ValueError("ode_dmax must be finite and positive")
+        if self.ode_amax is not None:
+            self.ode_amax = tuple(self.ode_amax)
+            if len(self.ode_amax) not in (1, ACT_DIM) or any(not math.isfinite(x) or x <= 0 for x in self.ode_amax):
+                raise ValueError(f"ode_amax must contain 1 or {ACT_DIM} finite positive bounds")
 
 
 @dataclass
@@ -58,16 +72,34 @@ class Decoder(nn.Module):
 
 
 class Policy(nn.Module):
-    """a = decoder(motion_encoder(goal), observation history); deterministic."""
+    """Deterministic direct-action or ODE actor, sharing the same encoder and decoder.
+
+    ODE follows NTUMARS/ODE-POLICY's rl-supermimic implementation: one bounded
+    Euler increment per control step, with physical dt absorbed in the decoder.
+    See licenses/ode_policy_NOTICE for the pinned source and attribution.
+    """
 
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
         self.encoders = nn.ModuleDict({"motion": MotionEncoder(cfg)})
         self.decoder = Decoder(cfg)
+        # Config owns the bounds; keep legacy MLP state_dict keys unchanged.
+        self.register_buffer(
+            "_ode_amax", None if cfg.ode_amax is None else torch.tensor(cfg.ode_amax), persistent=False
+        )
 
     def forward(self, obs_hist, goal):
-        return self.decoder(self.encoders["motion"](goal), obs_hist)
+        out = self.decoder(self.encoders["motion"](goal), obs_hist)
+        if self.cfg.actor == "mlp":
+            return out
+        # Term-major history ends with the newest CLEAN action. Do not detach:
+        # imagined actions must retain their direct gradient path through time.
+        delta = out if self.cfg.ode_dmax is None else out.clamp(-self.cfg.ode_dmax, self.cfg.ode_dmax)
+        action = obs_hist[..., -ACT_DIM:] + delta
+        if self._ode_amax is not None:
+            action = torch.maximum(torch.minimum(action, self._ode_amax), -self._ode_amax)
+        return action
 
 
 class Critic(nn.Module):

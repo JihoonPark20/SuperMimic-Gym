@@ -12,6 +12,7 @@ def train(args):
     try:
         runner = task_registry.make_alg_runner(env, args.task, args, train_cfg)
         print(
+            f"Task: {args.task} ({runner.policy_cfg.actor}); "
             f"MuJoCo CPU: {env.num_envs} envs / {env_cfg.sim.nthread} workers; learner: {runner.device}; logs: {runner.log_dir}"
         )
         runner.learn(train_cfg.runner.max_iterations)

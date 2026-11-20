@@ -64,7 +64,9 @@ class ImagRollout:
     reward_terms: dict
 
 
-def imagine(wm, policy, lib, start, horizon, step_fn, future_frames=10, obs_noise=True, anchor_obs=True):
+def imagine(
+    wm, policy, lib, start, horizon, step_fn, future_frames=10, obs_noise=True, anchor_obs=True, grad_probe=None
+):
     device, n = start.state.device, start.state.shape[0]
     q0, ai = lib.default_joint_pos, wm.heads.anchor_index
     noise_half, anchor_half = OBS_NOISE_HALF.to(device), ANCHOR_NOISE_HALF.to(device)
@@ -108,6 +110,8 @@ def imagine(wm, policy, lib, start, horizon, step_fn, future_frames=10, obs_nois
     term_sum = torch.zeros(len(REWARD_TERM_NAMES), device=device)
     for t in range(horizon):
         a = policy(flatten_history_term_major(torch.stack(hist)), goals[-1])
+        if grad_probe is not None and a.requires_grad:
+            a.register_hook(lambda g, t=t: grad_probe.__setitem__(t, g.norm(dim=-1).mean().detach()))
         s, r, term_vec, logits, obs, anchor = step_fn(s, a, a_prev, start.xi, tuple(x[t] for x in refs))
         d = torch.sigmoid(logits)
         c = c * (1.0 - d)
@@ -193,6 +197,7 @@ class PolicyTrainer:
         xi_norm = self.wm.spec.normalize_xi(start.xi)
         self.wm.requires_grad_(False)
         self.critic.requires_grad_(False)
+        grad_probe = {}
         ro = imagine(
             self.wm,
             self.policy,
@@ -203,6 +208,7 @@ class PolicyTrainer:
             cfg.future_frames,
             cfg.obs_noise,
             cfg.anchor_obs,
+            grad_probe,
         )
         H1, n, _ = ro.states.shape
         feat = self.wm.spec.canonical(ro.states.reshape(H1 * n, -1)).reshape(H1, n, -1)
@@ -225,6 +231,27 @@ class PolicyTrainer:
             "action_abs_mean": float(ro.actions.abs().mean().detach()),
             **{f"imag_r/{k}": v for k, v in ro.reward_terms.items()},
         }
+        with torch.no_grad():
+            previous = torch.cat((start.prev_action[None], ro.actions[:-1]))
+            delta = ro.actions - previous
+            # Upstream definition: changes within the rollout only, comparable with ODE-POLICY logs.
+            metrics["imag_action_rate"] = float((ro.actions[1:] - ro.actions[:-1]).square().sum(-1).mean())
+            if len(grad_probe) == cfg.horizon:
+                first, last = grad_probe[0], grad_probe[cfg.horizon - 1]
+                metrics.update(
+                    dJda_first=float(first),
+                    dJda_last=float(last),
+                    dJda_log_first_over_last=float(torch.log10(first.clamp_min(1e-12) / last.clamp_min(1e-12))),
+                )
+            if self.policy.cfg.actor == "ode":
+                # Fractions at the bounds of the FINAL actions/increments, not raw decoder clipping rates.
+                if self.policy.cfg.ode_dmax is not None:
+                    metrics["ode_step_bound_fraction"] = float(
+                        (delta.abs() >= self.policy.cfg.ode_dmax - 1e-6).float().mean()
+                    )
+                if self.policy.cfg.ode_amax is not None:
+                    bound = ro.actions.new_tensor(self.policy.cfg.ode_amax)
+                    metrics["ode_action_bound_fraction"] = float((ro.actions.abs() >= bound - 1e-6).float().mean())
         if not cfg.use_critic:
             return metrics
         with torch.no_grad():

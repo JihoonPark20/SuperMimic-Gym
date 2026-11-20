@@ -62,6 +62,9 @@ def policy_config(env_cfg, train_cfg):
         history=env_cfg.env.history_length,
         decoder_last_gain=p.decoder_last_gain,
         goal_dim=goal_dim,
+        actor=p.actor,
+        ode_dmax=p.ode_dmax,
+        ode_amax=None if p.ode_amax is None else tuple(p.ode_amax),
     )
 
 
@@ -177,11 +180,20 @@ class SuperMimicRunner:
         """Load weights; restore_env also restores optimizers, sampler state and the iteration (resume)."""
         ck = torch.load(path, map_location="cpu", weights_only=False)
         saved = ck.get("config", {}).get("policy", {})
+        # Old checkpoints have the same weight shapes, but always mean direct actions.
+        saved_actor = saved.get("actor", "mlp")
+        if saved_actor != self.policy_cfg.actor:
+            raise ValueError(
+                f"Checkpoint actor {saved_actor!r} does not match configured actor "
+                f"{self.policy_cfg.actor!r}; select the matching --task"
+            )
+        if saved_actor == "ode" and not {"ode_dmax", "ode_amax"}.issubset(saved):
+            raise ValueError("ODE checkpoint must include ode_dmax and ode_amax policy configuration")
         expected = vars(self.policy_cfg)
         mismatch = {
             k: (saved[k], v)
             for k, v in expected.items()
-            if k in saved and (tuple(saved[k]) if isinstance(v, tuple) else saved[k]) != v
+            if k in saved and (tuple(saved[k]) if isinstance(v, tuple) and saved[k] is not None else saved[k]) != v
         }
         if mismatch:
             raise ValueError(f"Checkpoint policy configuration differs (saved, configured): {mismatch}")
